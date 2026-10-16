@@ -85,7 +85,16 @@ SESSION 会过期，需要重新登录后手动更新 Secret；失效、退出�
 ### 最近一次运行
 
 <!-- checkin-results:start -->
-尚无运行记录。配置 Secrets 后，可在 Actions 中手动执行一次。
+
+北京时间：2026-10-16 10:25:27 (UTC+8)
+
+| 服务 | 状态 |
+| --- | --- |
+| Agent Router | 失败 (`failure`) |
+| AnyRouter | 成功 (`success`) |
+
+[查看本次运行](https://github.com/zzdccww/any_agent_checkin/actions/runs/38840154026)
+
 <!-- checkin-results:end -->
 
 ### 权限与保留策略
