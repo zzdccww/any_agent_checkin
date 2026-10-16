@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "check": "node --check login.mjs",
-    "login": "node login.mjs",
-    "test": "node --test"
+    "login": "node login.mjs"
   },
   "engines": {
     "node": ">=20"

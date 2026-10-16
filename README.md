@@ -50,7 +50,9 @@ GitHub 定时任务可能延迟或漏跑，不保证准点执行；公开仓库�
 
 `name` 应使用不含邮箱或其他个人信息的别名，用于 Actions 日志和 Summary；公开仓库的运行记录也可能被公开查看。每个账号使用独立浏览器上下文。只要存在一个登录失败，Agent Router 任务即标记失败。
 
-未配置全局 `PROXY_URL` 时，`socks5` 可省略、置为 `null` 或留空，此时直连。配置时仅支持无认证的 `socks5://host:port`。账号 SOCKS5 连接失败、无法打开登录页或登录页返回错误状态时，会关闭代理并直连重试一次；页面打开后的密码错误、验证码和页面操作失败不触发直连重试。配置全局节点时，优先使用全局代理且不回退直连。详情见 [Agent Router 说明](agentrouter/docs/github-actions-login.md)。
+未配置全局 `PROXY_URL` 时，`socks5` 可省略、置为 `null` 或留空，此时直连。配置时仅支持无认证的 `socks5://host:port`。账号 SOCKS5 连接失败、无法打开登录页或登录页返回错误状态时，会关闭代理并直连重试一次；页面打开后的密码错误、验证码和页面操作失败不触发直连重试。配置全局节点时，优先使用全局代理且不回退直连。
+
+Agent Router 提交账号密码后，会访问受保护页面 `/console/topup`；只有成功进入控制台才判定登录成功。失败时查看 Actions 中的阶段和网络诊断信息。
 
 ### 全局节点代理
 
@@ -93,22 +95,13 @@ SESSION 会过期，需要重新登录后手动更新 Secret；失效、退出�
 - 分支保护、仓库规则或组织策略可能阻止自动推送，需按仓库政策允许机器人更新，或接受 README 无法自动记录。不要为此把个人令牌写进代码。
 - Git 提交历史会保留旧结果；旧 Actions 记录可能被清理，需要长期保存时请自行归档。
 
-## 本地开发与验证
+## 本地运行
 
-使用 Node.js 20+、Python 3.11；从仓库根目录执行：
+使用 Node.js 20+、Python 3.11，通过本机环境变量提供上述凭据，再从仓库根目录执行：
 
 ```sh
 npm --prefix agentrouter ci
-npm --prefix agentrouter test
 npm --prefix agentrouter run check
-python -m unittest discover -s tests -v
-```
-
-Node 测试覆盖账号解析和登录流程；Python 测试使用模拟响应覆盖汇总、通知、README 更新及签到失败状态，不会登录真实账号或发送真实通知。语法及模拟测试通过，仍需在配置 Secrets 后检查一次真实 Actions 运行。
-
-需要本地运行真实服务时，先安装依赖及 Chromium，再通过本机环境变量提供上述凭据：
-
-```sh
 npm --prefix agentrouter exec -- playwright install chromium
 python -m pip install requests playwright pynacl
 python -m playwright install chromium
@@ -121,9 +114,11 @@ Linux 上可为 Playwright 安装命令添加 `--with-deps` 以安装系统依�
 ## 项目结构与限制
 
 - `.github/workflows/daily-checkin.yml`：统一调度、服务任务、汇总与旧运行清理。
-- `agentrouter/`：Node.js / Playwright 多账号登录脚本与测试。
+- `agentrouter/`：Node.js / Playwright 多账号登录脚本和 npm 依赖清单。
 - `AnyRouter/app.py`：Python / Playwright 签到脚本。
-- `tests/`：Python 离线回归测试。
 - `scripts/proxy_handler.py`：节点解析、代理下载校验、启动与清理。
+- `scripts/checkin_report.py`：更新 README 运行记录并发送 Telegram 汇总。
+
+公库仅保留签到运行、部署和使用说明所需文件。`.gitignore` 采用文件白名单；新增运行所需文件时须同步更新白名单，本地测试、开发资料和凭据不提交。
 
 Agent Router 当前不处理验证码、两步验证或人工确认；AnyRouter 使用单个 `USER_ID` / `SESSION`。站点页面、接口、WAF 或 GitHub 网络变化都可能影响运行；日志或任务失败时需结合 Actions 详情排查。
