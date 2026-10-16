@@ -239,13 +239,13 @@ export async function runAccounts(accounts, loginAccount, log = console.log) {
   return results;
 }
 
-async function createLoginSession(browser, socks5, network) {
+async function createLoginSession(browser, proxyServer, network) {
   let context;
 
   try {
     context = await browser.newContext({
       locale: 'zh-CN',
-      ...(socks5 ? { proxy: { server: socks5 } } : {}),
+      ...(proxyServer ? { proxy: { server: proxyServer } } : {}),
     });
     const page = await context.newPage();
     page.setDefaultTimeout(LOGIN_TIMEOUT_MS);
@@ -270,7 +270,21 @@ async function createLoginSession(browser, socks5, network) {
   }
 }
 
-export async function openLoginSession(browser, account, log = console.log) {
+export async function openLoginSession(
+  browser,
+  account,
+  log = console.log,
+  proxyServer = process.env.PROXY_SERVER?.trim(),
+) {
+  if (proxyServer) {
+    try {
+      return await createLoginSession(browser, proxyServer, '全局 sing-box 代理');
+    } catch (error) {
+      const message = sanitizeError(error, { ...account, socks5: proxyServer });
+      throw new Error(`全局代理打开登录页失败，禁止回退直连 - ${message}`);
+    }
+  }
+
   if (!account.socks5) {
     try {
       return await createLoginSession(browser, null, 'GitHub Actions 直连');

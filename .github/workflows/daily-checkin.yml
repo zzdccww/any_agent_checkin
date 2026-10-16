@@ -39,12 +39,21 @@ jobs:
         working-directory: agentrouter
         run: npx playwright install --with-deps chromium
 
+      - name: Start optional node proxy
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+        run: python3 scripts/proxy_handler.py start
+
       - name: Login all accounts
         working-directory: agentrouter
         env:
           ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }}
           LOGIN_RESULTS_FILE: ${{ runner.temp }}/agent-router-login-results.md
         run: npm run login
+
+      - name: Stop node proxy
+        if: ${{ always() }}
+        run: python3 scripts/proxy_handler.py stop
 
   anyrouter-checkin:
     name: AnyRouter check-in
@@ -68,12 +77,21 @@ jobs:
           pip install requests playwright pynacl
           playwright install --with-deps chromium
 
+      - name: Start optional node proxy
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+        run: python3 scripts/proxy_handler.py start
+
       - name: Run check-in script
         working-directory: AnyRouter
         env:
           USER_ID: ${{ secrets.USER_ID }}
           SESSION: ${{ secrets.SESSION }}
         run: python app.py
+
+      - name: Stop node proxy
+        if: ${{ always() }}
+        run: python3 scripts/proxy_handler.py stop
 
   report:
     name: Publish results and notify

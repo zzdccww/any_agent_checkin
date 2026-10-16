@@ -24,6 +24,7 @@ GitHub 定时任务可能延迟或漏跑，不保证准点执行；公开仓库�
 | `SESSION` | 是 | AnyRouter 登录 Cookie 中 `session` 字段的值。 |
 | `TG_BOT_TOKEN` | 否 | Telegram Bot Token，与 `TG_CHAT_ID` 配对配置。 |
 | `TG_CHAT_ID` | 否 | 接收汇总的用户或群组 ID。 |
+| `PROXY_URL` | 否 | 全局代理节点分享链接，支持 VLESS、VMess、Trojan、Shadowsocks；见下文。 |
 
 三个必填项用于完整运行两项服务；缺少某项服务的配置时，对应任务失败，另一项仍会执行。凭据只放入 Secrets，勿提交到仓库、Issue 或日志中。
 
@@ -49,7 +50,21 @@ GitHub 定时任务可能延迟或漏跑，不保证准点执行；公开仓库�
 
 `name` 应使用不含邮箱或其他个人信息的别名，用于 Actions 日志和 Summary；公开仓库的运行记录也可能被公开查看。每个账号使用独立浏览器上下文。只要存在一个登录失败，Agent Router 任务即标记失败。
 
-`socks5` 可省略、置为 `null` 或留空，此时直连。配置时仅支持无认证的 `socks5://host:port`。代理连接失败、无法打开登录页或登录页返回错误状态时，会关闭代理并直连重试一次；页面打开后的密码错误、验证码和页面操作失败不触发直连重试。详情见 [Agent Router 说明](agentrouter/docs/github-actions-login.md)。
+未配置全局 `PROXY_URL` 时，`socks5` 可省略、置为 `null` 或留空，此时直连。配置时仅支持无认证的 `socks5://host:port`。账号 SOCKS5 连接失败、无法打开登录页或登录页返回错误状态时，会关闭代理并直连重试一次；页面打开后的密码错误、验证码和页面操作失败不触发直连重试。配置全局节点时，优先使用全局代理且不回退直连。详情见 [Agent Router 说明](agentrouter/docs/github-actions-login.md)。
+
+### 全局节点代理
+
+在仓库 Secrets 中新增 `PROXY_URL`，值为一条完整的 `vless://`、`vmess://`、`trojan://` 或 `ss://` 节点分享链接。请直接粘贴节点链接，不要粘贴订阅地址或多个节点；不要将含 UUID、密码或节点地址的真实链接写入仓库。
+
+两个签到任务会各自启动 **sing-box 1.14.3**，通过本地 `http://127.0.0.1:8118` mixed 入站出网。下载文件校验固定 SHA-256，启动前执行 `sing-box check`，等待端口就绪后才运行签到，结束时停止代理并删除临时配置。
+
+- Agent Router：全局节点优先于账号 JSON 中的 `socks5`，所有账号使用该节点。
+- AnyRouter：获取 WAF Cookie 的 Chromium 和后续 HTTP API 请求使用同一个节点，避免浏览器与 API 出口不一致。
+- 节点链接支持 TLS、VLESS Reality，以及 WebSocket（含 `?ed=`）、gRPC 和 HTTP/H2 传输；Shadowsocks 支持 SIP002 和传统 base64 链接，不支持插件。
+- 配置节点后，解析、校验、启动或连接失败会让相应签到任务失败，**不会自动回退直连**。未配置时，保持原有直连或账号 SOCKS5 行为。
+- 依赖下载、GitHub 操作及最终 Telegram 通知使用 runner 网络，通知不依赖节点是否成功启动。自动安装仅支持 GitHub Actions 的 Linux x86_64 runner。
+
+本地已有无认证 HTTP 代理时，也可将环境变量 `PROXY_SERVER` 设置为其地址，再运行相应签到脚本。此变量用于连接可用的本地代理端口，不接受 VLESS 等分享链接。节点配置生成工具为 `python scripts/proxy_handler.py generate --output config.json`，从环境变量 `PROXY_URL` 读取链接；生成的配置含凭据，不要上传或分享。
 
 ### AnyRouter SESSION
 
@@ -109,5 +124,6 @@ Linux 上可为 Playwright 安装命令添加 `--with-deps` 以安装系统依�
 - `agentrouter/`：Node.js / Playwright 多账号登录脚本与测试。
 - `AnyRouter/app.py`：Python / Playwright 签到脚本。
 - `tests/`：Python 离线回归测试。
+- `scripts/proxy_handler.py`：节点解析、代理下载校验、启动与清理。
 
 Agent Router 当前不处理验证码、两步验证或人工确认；AnyRouter 使用单个 `USER_ID` / `SESSION`。站点页面、接口、WAF 或 GitHub 网络变化都可能影响运行；日志或任务失败时需结合 Actions 详情排查。

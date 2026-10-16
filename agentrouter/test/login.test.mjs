@@ -176,6 +176,39 @@ test('openLoginSession falls back to direct network when SOCKS5 cannot connect',
   await session.context.close();
 });
 
+test('global proxy takes priority over an account SOCKS5 setting', async () => {
+  const fake = createFakeBrowser();
+  const session = await openLoginSession(
+    fake.browser,
+    { name: '账号 1', username: 'one', password: 'secret', socks5: 'socks5://account.example:1080' },
+    () => {},
+    'http://127.0.0.1:8118',
+  );
+
+  assert.deepEqual(fake.options, [
+    { locale: 'zh-CN', proxy: { server: 'http://127.0.0.1:8118' } },
+  ]);
+  assert.equal(session.network, '全局 sing-box 代理');
+  await session.context.close();
+});
+
+test('global proxy connection failure never falls back to direct network', async () => {
+  const fake = createFakeBrowser({ failProxy: true });
+  const logs = [];
+  await assert.rejects(
+    () => openLoginSession(
+      fake.browser,
+      { name: '账号 1', username: 'one', password: 'secret', socks5: null },
+      (message) => logs.push(message),
+      'http://127.0.0.1:8118',
+    ),
+    /禁止回退直连/,
+  );
+  assert.equal(fake.options.length, 1);
+  assert.equal(fake.contexts[0].closed, true);
+  assert.deepEqual(logs, []);
+});
+
 test('formatPageDiagnostics removes secrets and URL query data', () => {
   const diagnostics = formatPageDiagnostics(
     {

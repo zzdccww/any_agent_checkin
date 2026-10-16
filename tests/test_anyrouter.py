@@ -4,7 +4,7 @@ import types
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 
 def load_app():
@@ -32,6 +32,7 @@ class CheckinExitStatusTests(unittest.TestCase):
         self.addCleanup(self.patches.close)
         self.app.SESSION = "example-session"
         self.app.USER_ID = "123456"
+        self.app.PROXY_SERVER = ""
         for name, value in {
             "log": Mock(),
             "get_waf_cookies": Mock(return_value={}),
@@ -64,6 +65,39 @@ class CheckinExitStatusTests(unittest.TestCase):
             self.app.main()
         self.assertEqual(result.exception.code, 1)
         self.app.do_check_in.assert_not_called()
+
+    def test_proxy_routes_all_api_requests_without_environment_bypass(self):
+        self.app.PROXY_SERVER = "http://127.0.0.1:8118"
+        self.app.main()
+        session = self.app.requests.Session.return_value
+        self.assertIs(session.trust_env, False)
+        session.proxies.update.assert_called_once_with({
+            "http": self.app.PROXY_SERVER, "https": self.app.PROXY_SERVER,
+        })
+
+    def test_direct_mode_does_not_override_session_proxy_settings(self):
+        self.app.main()
+        self.app.requests.Session.return_value.proxies.update.assert_not_called()
+
+
+class BrowserProxyTests(unittest.TestCase):
+    def test_browser_and_api_use_the_same_proxy_endpoint(self):
+        for proxy_server in ("", "http://127.0.0.1:8118"):
+            with self.subTest(proxy_configured=bool(proxy_server)):
+                app = load_app()
+                app.PROXY_SERVER = proxy_server
+                app.log = Mock()
+                manager = MagicMock()
+                app.sync_playwright = Mock(return_value=manager)
+                browser = manager.__enter__.return_value.chromium.launch.return_value
+                browser.new_context.return_value.cookies.return_value = []
+                app.get_waf_cookies()
+                options = manager.__enter__.return_value.chromium.launch.call_args.kwargs
+                if proxy_server:
+                    self.assertEqual(options["proxy"], {"server": proxy_server})
+                else:
+                    self.assertNotIn("proxy", options)
+                browser.close.assert_called_once()
 
 
 if __name__ == "__main__":

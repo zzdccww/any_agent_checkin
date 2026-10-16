@@ -16,6 +16,7 @@ USER_ID      = os.getenv("USER_ID") or ""  # 用户ID,必填,登录后右上角�
 SESSION      = os.getenv("SESSION") or ""  # session必填,登录后F12或右键检查菜单进去,选择应用程序或Appcations栏,找到cookie,右边找到session的值
 TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN") or ""  # Telegram bot token,不需要通知可以留空
 TG_CHAT_ID   = os.getenv("TG_CHAT_ID") or ""    # Telegram chat id
+PROXY_SERVER = (os.getenv("PROXY_SERVER") or "").strip()
 
 SITE_URL = "https://anyrouter.top"
 SESSION_TTL_DAYS = 30  # Session 有效期 30 天，剩余 < 3 天则更新
@@ -146,6 +147,7 @@ def get_waf_cookies() -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
+            **({"proxy": {"server": PROXY_SERVER}} if PROXY_SERVER else {}),
             args=[
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -312,6 +314,9 @@ def run_checkin():
 
     # ---------- Step 2: 构建 HTTP Session ----------
     session = requests.Session()
+    if PROXY_SERVER:
+        session.trust_env = False
+        session.proxies.update({"http": PROXY_SERVER, "https": PROXY_SERVER})
 
     # 设置所有 Cookie: WAF Cookie + Session Cookie + user_id
     all_cookies = {}

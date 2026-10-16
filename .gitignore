@@ -24,6 +24,12 @@ id_ed25519*
 accounts.json
 cookies.json
 session.json
+/config.json
+/proxy-config*.json
+/sing-box
+/sing-box.exe
+/sing-box*.tar.gz
+/sing-box*.zip
 
 # Dependencies, caches and generated files
 node_modules/
