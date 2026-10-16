@@ -1,0 +1,51 @@
+# Local agent tooling and journals
+.agents/
+.claude/
+.codex/
+.trellis/
+AGENTS.md
+
+# Credentials and machine-local configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+credentials.json
+credentials.*.json
+secrets.json
+secrets.*.json
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+accounts.json
+cookies.json
+session.json
+
+# Dependencies, caches and generated files
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.cache/
+*.log
+coverage/
+.coverage
+htmlcov/
+test-results/
+playwright-report/
+login-results*.md
+login-results*.json
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,69 @@
+name: Agent Router 多账号登录
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7 0 * * *' # UTC 00:07 = 北京时间 08:07
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-router-login-record
+  cancel-in-progress: false
+
+jobs:
+  login:
+    name: 依次登录全部账号
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Login all accounts
+        env:
+          ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }}
+          LOGIN_RESULTS_FILE: ${{ runner.temp }}/agent-router-login-results.md
+        run: npm run login
+
+      - name: Update latest run record
+        if: always()
+        env:
+          LOGIN_RESULTS_FILE: ${{ runner.temp }}/agent-router-login-results.md
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          {
+            echo '# 最新运行记录'
+            echo
+            if [ -s "$LOGIN_RESULTS_FILE" ]; then
+              cat "$LOGIN_RESULTS_FILE"
+            else
+              echo '登录步骤未生成逐账号结果。'
+            fi
+          } > README.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+
+          if git diff --cached --quiet; then
+            echo '运行记录没有变化，无需提交。'
+            exit 0
+          fi
+
+          git commit -m "chore: update latest login record"
+          git push origin "HEAD:${TARGET_BRANCH}"

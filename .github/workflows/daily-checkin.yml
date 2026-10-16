@@ -1,0 +1,140 @@
+name: Daily Check-in
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7 0 * * *' # UTC 00:07 = Beijing time 08:07
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-checkin-record
+  cancel-in-progress: false
+
+jobs:
+  agent-router-login:
+    name: Agent Router multi-account login
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: agentrouter/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: agentrouter
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: agentrouter
+        run: npx playwright install --with-deps chromium
+
+      - name: Login all accounts
+        working-directory: agentrouter
+        env:
+          ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }}
+          LOGIN_RESULTS_FILE: ${{ runner.temp }}/agent-router-login-results.md
+        run: npm run login
+
+  anyrouter-checkin:
+    name: AnyRouter check-in
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies and Chromium
+        working-directory: AnyRouter
+        run: |
+          pip install requests playwright pynacl
+          playwright install --with-deps chromium
+
+      - name: Run check-in script
+        working-directory: AnyRouter
+        env:
+          USER_ID: ${{ secrets.USER_ID }}
+          SESSION: ${{ secrets.SESSION }}
+        run: python app.py
+
+  report:
+    name: Publish results and notify
+    needs: [agent-router-login, anyrouter-checkin]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: write
+    env:
+      AGENT_ROUTER_RESULT: ${{ needs.agent-router-login.result }}
+      ANYROUTER_RESULT: ${{ needs.anyrouter-checkin.result }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set report time
+        run: echo "REPORT_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
+      - name: Update latest check-in results
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          python scripts/checkin_report.py update-readme
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- README.md
+
+          if git diff --cached --quiet -- README.md; then
+            echo '运行记录没有变化，无需提交。'
+            exit 0
+          fi
+
+          git commit -m "chore: update latest check-in results" -- README.md
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Send combined Telegram notification
+        if: ${{ always() }}
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python scripts/checkin_report.py notify
+
+      - name: Clear old workflow runs
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow daily-checkin.yml --status completed --limit 100 --json databaseId --jq '.[].databaseId')
+          for run_id in $runs; do
+            if [ "$run_id" != "$GITHUB_RUN_ID" ]; then
+              echo "删除运行记录: $run_id"
+              gh run delete "$run_id" --repo "$GITHUB_REPOSITORY" || echo "无法删除运行记录: $run_id"
+            fi
+          done
