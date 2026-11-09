@@ -86,14 +86,14 @@ SESSION 会过期，需要重新登录后手动更新 Secret；失效、退出�
 
 <!-- checkin-results:start -->
 
-北京时间：2026-11-08 13:52:10 (UTC+8)
+北京时间：2026-11-09 14:07:17 (UTC+8)
 
 | 服务 | 状态 |
 | --- | --- |
-| Agent Router | 成功 (`success`) |
-| AnyRouter | 成功 (`success`) |
+| Agent Router | 失败 (`failure`) |
+| AnyRouter | 失败 (`failure`) |
 
-[查看本次运行](https://github.com/zzdccww/any_agent_checkin/actions/runs/42452387589)
+[查看本次运行](https://github.com/zzdccww/any_agent_checkin/actions/runs/42571064369)
 
 <!-- checkin-results:end -->
 
